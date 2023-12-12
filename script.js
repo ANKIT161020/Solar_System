@@ -30,7 +30,7 @@ composer.addPass(renderScene)
 //Creating the BloomPass
 const BloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth,window.innerHeight),
-  2,
+  1,
   0.1,
   0.1,
 )
@@ -123,8 +123,8 @@ scene.add(
   );
 
 //POSITIONING THE CAMERA
-camera.position.z = 50;
-
+camera.position.z = 60;
+camera.position.y = 30;
 
 //ADDING THE LIGHT SOURCES 
 
