@@ -4,6 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import {RenderPass} from 'three/examples/jsm/postprocessing/RenderPass'
 import {EffectComposer} from 'three/examples/jsm/postprocessing/EffectComposer'
 import {UnrealBloomPass} from "three/examples/jsm/postprocessing/UnrealBloomPass"
+import { GUI } from 'dat.gui';
 // Specifing canvas element
 const canvas = document.getElementById("solarsystem");
 
@@ -16,24 +17,27 @@ const renderer = new THREE.WebGLRenderer({canvas});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-
-// Layers
-const bloomLayer = new THREE.Layers();
-const nonBloomLayer = new THREE.Layers();
-bloomLayer.set(1); // Set a custom layer ID for the bloom layer
-
 //Creating renderpass and efectcomposer
 const renderScene = new RenderPass(scene,camera);
 const composer = new EffectComposer(renderer);
 composer.addPass(renderScene)
 
+
+// const selectiveBloomObjects = []; // Add objects that should have selective bloom to this array
+
+
+// Layers
+const bloomLayer = new THREE.Layers();
+bloomLayer.set(1); 
+
 //Creating the BloomPass
 const BloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth,window.innerHeight),
-  1,
+  1.5,
   0.1,
   0.1,
 )
+BloomPass.renderToScreen = true; // Render to the screen
 composer.addPass(BloomPass)
 
 
@@ -48,11 +52,12 @@ const sunMaterial = new THREE.MeshStandardMaterial({
     map:new THREE.TextureLoader().load("./assets/sunmap.jpg")
 })
 const sun = new THREE.Mesh(sunGeometry,sunMaterial)
-sun.layers.enable(bloomLayer)
+sun.layers.enable(1) //Enable bloom layer for sun
 scene.add(sun)
+// selectiveBloomObjects.push(sun);
 
 //CREATE PLANETS FUNCTION
-const TexturedPlanet = (radius, texture, normaltexture, distance, hasRing = false, ringtexture,layer)=>{
+const TexturedPlanet = (radius, texture, normaltexture, distance, hasRing = false, ringtexture)=>{
     const planetGeometry = new THREE.SphereGeometry(radius, 32, 64)
     const planetMaterial = new THREE.MeshStandardMaterial({
         map: new THREE.TextureLoader().load(texture),
@@ -60,7 +65,6 @@ const TexturedPlanet = (radius, texture, normaltexture, distance, hasRing = fals
     });
     const planet = new THREE.Mesh(planetGeometry, planetMaterial)
     planet.position.x = distance;
-    planet.layers.enable(layer);
     
     //FOR ORBIT
     const orbitGeometry = new THREE.RingGeometry(distance,distance+0.1,124)
@@ -85,14 +89,14 @@ const TexturedPlanet = (radius, texture, normaltexture, distance, hasRing = fals
 }
 
 //CREATING ALL PLANETS
-const mercury = TexturedPlanet(0.5, './assets/mercurymap.jpg','./assets/mercurybump.jpg', 10,nonBloomLayer);
-const venus = TexturedPlanet(0.7, "./assets/venusmap.jpg", "./assets/venusbump.jpg", 15,nonBloomLayer);
-const earth = TexturedPlanet(0.7, "./assets/earthmap.jpg", "./assets/earthbump.jpg", 20,nonBloomLayer);
-const mars = TexturedPlanet(0.6,  "./assets/marsmap.jpg","./assets/marsbump.jpg", 25,nonBloomLayer);
-const jupiter = TexturedPlanet(2,  "./assets/jupitermap.jpg","./assets/jupiterbump.png", 31,nonBloomLayer);
-const saturn = TexturedPlanet(1.5, "./assets/saturnmap.jpg", "./assets/saturnbump.png", 38,true,'./assets/saturnRingmap.png',nonBloomLayer);
-const uranus = TexturedPlanet(1, "./assets/uranusmap.jpg","./assets/uranusbump.png", 43,nonBloomLayer);
-const neptune = TexturedPlanet(1,"./assets/neptunemap.jpg","./assets/neptunebump.png", 48,nonBloomLayer);
+const mercury = TexturedPlanet(0.5, './assets/mercurymap.jpg','./assets/mercurybump.jpg', 10);
+const venus = TexturedPlanet(0.7, "./assets/venusmap.jpg", "./assets/venusbump.jpg", 15);
+const earth = TexturedPlanet(0.7, "./assets/earthmap.jpg", "./assets/earthbump.jpg", 20);
+const mars = TexturedPlanet(0.6,  "./assets/marsmap.jpg","./assets/marsbump.jpg", 25);
+const jupiter = TexturedPlanet(2,  "./assets/jupitermap.jpg","./assets/jupiterbump.png", 31);
+const saturn = TexturedPlanet(1.5, "./assets/saturnmap.jpg", "./assets/saturnbump.png", 38,true,'./assets/saturnRingmap.png');
+const uranus = TexturedPlanet(1, "./assets/uranusmap.jpg","./assets/uranusbump.png", 43);
+const neptune = TexturedPlanet(1,"./assets/neptunemap.jpg","./assets/neptunebump.png", 48);
 
 //AXES HELPER
 // const axesHelper = new THREE.AxesHelper(50);
@@ -129,11 +133,11 @@ camera.position.y = 30;
 //ADDING THE LIGHT SOURCES 
 
 //This is for Sun as the light source
-const sunLight = new THREE.PointLight("yellow", 1000,100);
+const sunLight = new THREE.PointLight("yellow", 300,1000);
 sunLight.position.set(0, 0, 0); // Position at the center
 sunLight.castShadow = true;
-const ambientLight = new THREE.AmbientLight("white");
-scene.add(sunLight, ambientLight)
+const ambientLight = new THREE.AmbientLight("white", 0.8);
+scene.add(sunLight , ambientLight)
 
 
 //FOR WINDOW RESIZE
@@ -144,6 +148,14 @@ window.addEventListener("resize", () => {
     camera.updateProjectionMatrix();
     renderer.setSize(newWidth, newHeight);
   });
+
+
+//GUI CONTGROLS
+const gui = new GUI();
+
+gui.add(camera.position,'x',0,100).name("cameraPositionX");
+gui.add(camera.position,'y',0,100).name("cameraPositiony");
+gui.add(camera.position,'z',0,100).name("cameraPositionz");
 
 // Render loop
 const animate = () => {
@@ -189,7 +201,17 @@ const animate = () => {
 
    neptune.planet.position.x = 48 * Math.cos(orbitalSpeed * Date.now() * 0.0005);
    neptune.planet.position.z = 48 * Math.sin(orbitalSpeed * Date.now() * 0.0005);
-   composer.render();
+
+  // Clear the bloom scene
+  renderer.autoClear = true;
+  BloomPass.selectedObjects = [];
+  composer.render();
+
+  // Render the main scene
+  renderer.autoClear = false;
+  BloomPass.selectedObjects = bloomLayer;
+  composer.render();
+
   // renderer.render(scene, camera);
 };
 

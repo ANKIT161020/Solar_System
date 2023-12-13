@@ -29,6 +29,6 @@ Make sure you have the following software installed on your machine:
 
 2. open Terminal and install the node modules-----npm install
 
-3. Run the local server----npm start 
+3. Run the local server----npm run dev 
 
 
