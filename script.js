@@ -4,6 +4,8 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import {RenderPass} from 'three/examples/jsm/postprocessing/RenderPass'
 import {EffectComposer} from 'three/examples/jsm/postprocessing/EffectComposer'
 import {UnrealBloomPass} from "three/examples/jsm/postprocessing/UnrealBloomPass"
+import {OutputPass} from "three/examples/jsm/postprocessing/OutputPass"
+import {ShaderPass} from "three/examples/jsm/postprocessing/ShaderPass.js"
 import { GUI } from 'dat.gui';
 // Specifing canvas element
 const canvas = document.getElementById("solarsystem");
@@ -22,24 +24,54 @@ const renderScene = new RenderPass(scene,camera);
 const composer = new EffectComposer(renderer);
 composer.addPass(renderScene)
 
-
-// const selectiveBloomObjects = []; // Add objects that should have selective bloom to this array
-
-
-// Layers
-const bloomLayer = new THREE.Layers();
-bloomLayer.set(1); 
-
 //Creating the BloomPass
 const BloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth,window.innerHeight),
-  1.5,
+  1.0,
   0.1,
   0.1,
 )
-BloomPass.renderToScreen = true; // Render to the screen
 composer.addPass(BloomPass)
 
+composer.renderToScreen = false;
+
+const mixpass = new ShaderPass(
+  new THREE.ShaderMaterial({
+    uniforms:{
+      baseTexture: {value:null},
+      bloomTexture: {value: composer.renderTarget2.texture}
+    },
+    vertexShader:document.getElementById('vertexshader').textContent,
+    fragmentShader:document.getElementById('fragmentshader').textContent
+  }), 'baseTexture'
+);
+
+const finalComposer = new EffectComposer(renderer);
+finalComposer.addPass(renderScene)
+finalComposer.addPass(mixpass);
+
+const outputpass = new OutputPass();
+finalComposer.addPass(outputpass);
+
+const BLOOM_SCENE = 1;
+const bloomLayer = new THREE.Layers();
+bloomLayer.set(BLOOM_SCENE)
+const darkMaterial = new THREE.MeshBasicMaterial({color:0x000000});
+const materials = {};
+
+function nonBloomed(obj){
+  if(obj.isMesh && bloomLayer.test(obj.layers)=== false){
+    materials[obj.uuid] = obj.material;
+    obj.material = darkMaterial;
+  }
+}
+
+function restoreMaterial(obj){
+  if(materials[obj.uuid]){
+    obj.material = materials[obj.uuid]
+    delete materials[obj.uuid];
+  }
+}
 
 //star Background
 const starTexture = new THREE.TextureLoader().load("./assets/starsmap.jpg")
@@ -52,9 +84,8 @@ const sunMaterial = new THREE.MeshStandardMaterial({
     map:new THREE.TextureLoader().load("./assets/sunmap.jpg")
 })
 const sun = new THREE.Mesh(sunGeometry,sunMaterial)
-sun.layers.enable(1) //Enable bloom layer for sun
+sun.layers.enable(1);
 scene.add(sun)
-// selectiveBloomObjects.push(sun);
 
 //CREATE PLANETS FUNCTION
 const TexturedPlanet = (radius, texture, normaltexture, distance, hasRing = false, ringtexture)=>{
@@ -98,15 +129,12 @@ const saturn = TexturedPlanet(1.5, "./assets/saturnmap.jpg", "./assets/saturnbum
 const uranus = TexturedPlanet(1, "./assets/uranusmap.jpg","./assets/uranusbump.png", 43);
 const neptune = TexturedPlanet(1,"./assets/neptunemap.jpg","./assets/neptunebump.png", 48);
 
-//AXES HELPER
-// const axesHelper = new THREE.AxesHelper(50);
 
 //ORBIT CONTROLS
 const controls = new OrbitControls(camera, renderer.domElement);
 
 //ADDING THE PLANETS TO THE SCENE
 scene.add(
-    // axesHelper,
     mercury.planet,
     mercury.orbit,
     venus.planet,
@@ -133,11 +161,11 @@ camera.position.y = 30;
 //ADDING THE LIGHT SOURCES 
 
 //This is for Sun as the light source
-const sunLight = new THREE.PointLight("yellow", 300,1000);
+const sunLight = new THREE.PointLight("white", 1000,1000);
 sunLight.position.set(0, 0, 0); // Position at the center
 sunLight.castShadow = true;
-const ambientLight = new THREE.AmbientLight("white", 0.8);
-scene.add(sunLight , ambientLight)
+const ambientLight = new THREE.AmbientLight("white", 1);
+scene.add(sunLight, ambientLight)
 
 
 //FOR WINDOW RESIZE
@@ -147,6 +175,7 @@ window.addEventListener("resize", () => {
     camera.aspect = newWidth / newHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(newWidth, newHeight);
+    finalComposer.setSize(newWidth, newHeight);
   });
 
 
@@ -210,8 +239,13 @@ const animate = () => {
   // Render the main scene
   renderer.autoClear = false;
   BloomPass.selectedObjects = bloomLayer;
+
+  scene.traverse(nonBloomed);
+
   composer.render();
 
+  scene.traverse(restoreMaterial);
+  finalComposer.render();
   // renderer.render(scene, camera);
 };
 
